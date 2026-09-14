@@ -1,0 +1,351 @@
+<title>FGCensus</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23151823'/%3E%3Crect x='14' y='11' width='4' height='13' rx='1' fill='%23e9ebf3'/%3E%3Ccircle cx='16' cy='10' r='6' fill='%237b8cff'/%3E%3Crect x='6' y='23' width='20' height='4' rx='2' fill='%23f3b53a'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chivo+Mono:wght@400;600&family=Saira+Condensed:wght@800&display=swap">
+<style>
+:root {
+  --ground: #eceef3;
+  --surface: #fbfbfd;
+  --sunk: #e2e5ed;
+  --ink: #121420;
+  --muted: #5b6075;
+  --faint: #9a9fb2;
+  --line: #d6d9e3;
+  --accent: #3346e8;
+  --meter: #d48a00;
+  --meter-soft: rgba(212, 138, 0, .28);
+
+  --display: "Saira Condensed", "Arial Narrow", "Roboto Condensed", sans-serif-condensed, Impact, sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --mono: "Chivo Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0c0e15;
+    --surface: #151823;
+    --sunk: #1c2030;
+    --ink: #e9ebf3;
+    --muted: #8a8fa5;
+    --faint: #5a5f75;
+    --line: #262a3a;
+    --accent: #7b8cff;
+    --meter: #f3b53a;
+    --meter-soft: rgba(243, 181, 58, .26);
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #0c0e15;
+  --surface: #151823;
+  --sunk: #1c2030;
+  --ink: #e9ebf3;
+  --muted: #8a8fa5;
+  --faint: #5a5f75;
+  --line: #262a3a;
+  --accent: #7b8cff;
+  --meter: #f3b53a;
+  --meter-soft: rgba(243, 181, 58, .26);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font: 16px/1.45 var(--body);
+  padding-inline: 20px;
+  padding-block: 0 40px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* ---------- top bar ---------- */
+.bar {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: 4px 20px; padding-block: 18px 6px;
+}
+.tally { display: flex; flex-wrap: wrap; gap: 4px 24px; margin: 0; font-size: 15px; color: var(--muted); }
+.tally strong { font: 600 15px var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.live { font: 400 13px/1.3 var(--mono); color: var(--muted); }
+.pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: 1px; }
+.live-stale .pulse, .live-down .pulse { background: var(--meter); animation: none; }
+.notice {
+  margin: 8px 0 0; padding: 10px 14px; border-radius: 8px; font-size: 14px;
+  background: var(--meter-soft); color: var(--ink);
+}
+
+/* ---------- controls ---------- */
+.controls {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px;
+  background: var(--ground); padding-block: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.search {
+  flex: 1 1 220px; min-width: 0;
+  font: 500 15px var(--body); color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 9px 12px;
+}
+.search::placeholder { color: var(--faint); }
+.seg { display: inline-flex; background: var(--sunk); border-radius: 8px; padding: 3px; gap: 2px; flex-wrap: wrap; }
+.seg button {
+  font: 600 13px var(--body); color: var(--muted); background: transparent; border: 0;
+  padding: 6px 11px; border-radius: 6px; cursor: pointer;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.toggle { display: inline-flex; align-items: center; gap: 8px; font: 500 14px var(--body); color: var(--muted); cursor: pointer; user-select: none; }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.count { font: 400 13px var(--mono); color: var(--faint); margin-left: auto; }
+
+/* ---------- ladder ---------- */
+.ladder-head, .row {
+  display: grid;
+  grid-template-columns: 44px 138px minmax(0, 1fr) 96px minmax(200px, 300px);
+  gap: 16px; align-items: center;
+}
+.ladder-head {
+  padding: 14px 12px 8px; font: 600 11px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+}
+.ladder-head .r { text-align: right; }
+.axis { position: relative; height: 12px; }
+.axis span { position: absolute; transform: translateX(-50%); font: 400 10px/1 var(--mono); letter-spacing: 0; color: var(--faint); }
+.axis span:first-child { transform: none; }
+.axis span:last-child { transform: translateX(-100%); }
+
+.ladder { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.row { background: var(--surface); border-radius: 8px; padding: 8px 12px; }
+.row.empty { opacity: .55; }
+.rank { font: italic 800 26px/1 var(--display); color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
+.row.top .rank { color: var(--ink); }
+.thumb { width: 138px; height: 52px; border-radius: 4px; overflow: hidden; background: var(--sunk); display: block; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .ph { display: grid; place-items: center; width: 100%; height: 100%; font: 800 20px var(--display); color: var(--faint); }
+.who { min-width: 0; display: grid; gap: 4px; }
+.name { font: 600 16px/1.2 var(--body); overflow-wrap: anywhere; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--muted); }
+.meta a { text-decoration: none; border-bottom: 1px solid var(--line); }
+.meta a:hover { color: var(--ink); border-color: var(--ink); }
+.chip-plat { font: 600 11px var(--body); letter-spacing: .08em; text-transform: uppercase; color: var(--meter); }
+.now { text-align: right; font: 600 22px/1 var(--mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+
+.gauge { display: grid; gap: 5px; }
+.track { position: relative; height: 14px; }
+.track::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; background: var(--sunk); border-radius: 2px; }
+.grid-tick { position: absolute; top: 3px; width: 1px; height: 8px; background: var(--line); }
+.span { position: absolute; top: 3px; height: 8px; border-radius: 4px; background: var(--meter-soft); min-width: 2px; }
+.mean { position: absolute; top: 1px; width: 2px; height: 12px; margin-left: -1px; background: var(--meter); border-radius: 1px; }
+.dot { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
+.nums { display: flex; justify-content: space-between; gap: 8px; font: 400 11px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.nums b { font-weight: 600; color: var(--ink); }
+.nums .avg b { color: var(--meter); }
+
+.num-flash { animation: flash 1.2s ease-out; }
+@keyframes flash { from { color: var(--accent); } }
+
+.none { padding: 40px 12px; text-align: center; color: var(--muted); }
+footer {
+  display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px;
+  margin-top: 24px; padding-top: 14px; border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--muted);
+}
+footer p { margin: 0; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.legend i { display: inline-block; vertical-align: -1px; margin-right: 6px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+.lg-mean { width: 2px; height: 12px; background: var(--meter); }
+.lg-span { width: 22px; height: 8px; border-radius: 4px; background: var(--meter-soft); }
+
+@media (max-width: 860px) {
+  .ladder-head { display: none; }
+  .row { grid-template-columns: 30px 92px minmax(0, 1fr) auto; gap: 6px 12px; }
+  .thumb { width: 92px; height: 35px; }
+  .rank { font-size: 20px; }
+  .now { font-size: 18px; }
+  .gauge { grid-column: 2 / -1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pulse { animation: pulse 2.4s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+}
+</style>
+
+<div class="wrap">
+  <header class="bar">
+    <p class="tally" id="tally"></p>
+    <div class="live" id="live" aria-live="polite"><span class="pulse" aria-hidden="true"></span><span id="updated">Connecting…</span></div>
+  </header>
+  <p class="notice" id="notice" hidden></p>
+
+  <main>
+    <div class="controls">
+      <input class="search" id="q" type="search" placeholder="Find a game…" aria-label="Find a game">
+      <div class="seg" role="group" aria-label="Sort by" id="sort">
+        <button type="button" data-k="now" aria-pressed="true">Now</button>
+        <button type="button" data-k="mean">Week avg</button>
+        <button type="button" data-k="max">Week peak</button>
+        <button type="button" data-k="name">A–Z</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="plat"> Platform fighters</label>
+      <label class="toggle"><input type="checkbox" id="hide0"> Hide empty lobbies</label>
+      <span class="count" id="count"></span>
+    </div>
+
+    <div class="ladder-head" aria-hidden="true">
+      <span class="r">#</span><span></span><span>Game</span><span class="r">Now</span>
+      <div class="axis" id="axis"></div>
+    </div>
+    <ol class="ladder" id="ladder"></ol>
+  </main>
+
+  <footer>
+    <p>Live counts from Steam's public player-count API, updated every hour.</p>
+    <div class="legend">
+      <span><i class="lg-dot"></i>now</span>
+      <span><i class="lg-mean"></i>week avg</span>
+      <span><i class="lg-span"></i>week low–peak</span>
+      <span>log scale</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+const REFRESH_MS = 5 * 60_000;
+const fmt = n => n.toLocaleString("en-US");
+const $ = id => document.getElementById(id);
+const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// shared log scale: 0 … 50k
+const SCALE_MAX = Math.log10(50001);
+const pos = n => (Math.log10(n + 1) / SCALE_MAX * 100).toFixed(2) + "%";
+const TICKS = [[0, "0"], [10, "10"], [100, "100"], [1000, "1k"], [10000, "10k"], [50000, "50k"]];
+
+$("axis").innerHTML = TICKS.map(([v, l]) => `<span style="left:${pos(v)}">${l}</span>`).join("");
+const gridTicks = TICKS.slice(1, -1).map(([v]) => `<i class="grid-tick" style="left:${pos(v)}"></i>`).join("");
+
+function gauge(g) {
+  return `<div class="gauge">
+    <div class="track" role="img" aria-label="${fmt(g.now)} now, weekly low ${fmt(g.min)}, average ${fmt(g.mean)}, peak ${fmt(g.max)}">
+      ${gridTicks}
+      <i class="span" style="left:${pos(g.min)};width:calc(${pos(g.max)} - ${pos(g.min)})"></i>
+      <i class="mean" style="left:${pos(g.mean)}"></i>
+      <i class="dot" style="left:${pos(g.now)}"></i>
+    </div>
+    <div class="nums"><span>low <b>${fmt(g.min)}</b></span><span class="avg">avg <b>${fmt(g.mean)}</b></span><span>peak <b>${fmt(g.max)}</b></span></div>
+  </div>`;
+}
+
+function art(g) {
+  const initials = g.name.replace(/[^A-Za-z0-9 ]/g, "").split(" ").filter(Boolean).slice(0, 2).map(w => w[0]).join("").toUpperCase();
+  return `<img src="${esc(g.img || "")}" alt="" loading="lazy" onerror="this.outerHTML='<span class=&quot;ph&quot;>${initials}</span>'">`;
+}
+
+const ui = { sort: "now", q: "", plat: false, hide0: false };
+let data = null;
+let lastNow = new Map();
+const changed = g => lastNow.has(g.id) && lastNow.get(g.id) !== g.now;
+
+function renderLadder() {
+  if (!data) return;
+  let list = data.games.filter(g => ui.plat || g.kind === "traditional");
+  $("tally").innerHTML = `
+    <span><strong>${fmt(list.reduce((s, g) => s + g.now, 0))}</strong> playing right now</span>
+    <span><strong>${list.length}</strong> games tracked</span>
+    <span><strong>${list.filter(g => g.now > 0).length}</strong> with someone playing</span>`;
+  const rankById = new Map([...list].sort((a, b) => b.now - a.now || b.mean - a.mean).map((g, i) => [g.id, i + 1]));
+  const q = ui.q.trim().toLowerCase();
+  if (q) list = list.filter(g => g.name.toLowerCase().includes(q));
+  if (ui.hide0) list = list.filter(g => g.now > 0);
+  list.sort(ui.sort === "name"
+    ? (a, b) => a.name.localeCompare(b.name)
+    : (a, b) => b[ui.sort] - a[ui.sort] || b.now - a.now);
+
+  $("count").textContent = `${list.length} ${list.length === 1 ? "game" : "games"}`;
+  const empty = data.games.length ? `No games match “${esc(ui.q)}”.` : "Waiting for the first check of Steam…";
+  $("ladder").innerHTML = list.length ? list.map(g => {
+    const r = rankById.get(g.id);
+    return `<li class="row${g.now === 0 ? " empty" : ""}${r <= 10 ? " top" : ""}">
+      <span class="rank" title="Rank by players now">${r}</span>
+      <a class="thumb" href="https://store.steampowered.com/app/${g.id}" tabindex="-1" aria-hidden="true">${art(g)}</a>
+      <div class="who">
+        <span class="name">${esc(g.name)}</span>
+        <span class="meta">
+          ${g.kind === "platform" ? `<span class="chip-plat">Platform</span>` : ""}
+          <a href="https://store.steampowered.com/app/${g.id}">Steam</a>
+          <a href="https://steamcharts.com/app/${g.id}">SteamCharts</a>
+        </span>
+      </div>
+      <span class="now${changed(g) ? " num-flash" : ""}" aria-label="${fmt(g.now)} players now">${fmt(g.now)}</span>
+      ${gauge(g)}
+    </li>`;
+  }).join("") : `<li class="none">${empty}</li>`;
+}
+
+function ago(sec) {
+  if (sec < 60) return "just now";
+  const m = Math.round(sec / 60);
+  return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`;
+}
+
+let offline = false;
+function renderStatus() {
+  const box = $("live");
+  if (offline) {
+    box.className = "live live-down";
+    $("updated").textContent = data ? "Couldn't refresh — showing the last numbers" : "Couldn't load the numbers";
+    return;
+  }
+  if (!data || !data.polledAt) {
+    box.className = "live";
+    $("updated").textContent = "Checking Steam…";
+    return;
+  }
+  const age = Date.now() / 1000 - data.polledAt;
+  const stale = age > data.pollEvery * 2.5;
+  box.className = "live" + (stale ? " live-stale" : "");
+  const at = new Date(data.polledAt * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  $("updated").textContent = `${stale ? "Delayed · " : ""}updated ${at} (${ago(age)})`;
+}
+
+function renderNotice() {
+  const n = $("notice");
+  const days = data.historyFrom ? (data.serverTime - data.historyFrom) / 86400 : 0;
+  let msg = "";
+  if (data.seeding) msg = "Loading the past week of history — weekly low, average and peak fill in over the next couple of minutes.";
+  else if (data.games.length && days < 6.5) msg = `Only ${Math.max(days, 0).toFixed(1)} days of history so far — weekly numbers cover what's been collected.`;
+  if (data.error) msg = (msg ? msg + " " : "") + `Last Steam check had a problem: ${data.error}.`;
+  n.textContent = msg;
+  n.hidden = !msg;
+}
+
+async function refresh() {
+  try {
+    const res = await fetch("api/state.json", { cache: "no-store" });
+    if (!res.ok) throw new Error(res.status);
+    data = await res.json();
+    offline = false;
+    renderLadder();
+    renderNotice();
+    lastNow = new Map(data.games.map(g => [g.id, g.now]));
+  } catch {
+    offline = true;
+  }
+  renderStatus();
+  setTimeout(refresh, REFRESH_MS);
+}
+
+$("q").addEventListener("input", e => { ui.q = e.target.value; renderLadder(); });
+$("plat").addEventListener("change", e => { ui.plat = e.target.checked; renderLadder(); });
+$("hide0").addEventListener("change", e => { ui.hide0 = e.target.checked; renderLadder(); });
+$("sort").addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b) return;
+  ui.sort = b.dataset.k;
+  $("sort").querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b));
+  renderLadder();
+});
+document.addEventListener("visibilitychange", () => { if (!document.hidden) renderStatus(); });
+setInterval(renderStatus, 15_000);
+refresh();
+</script>
