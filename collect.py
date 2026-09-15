@@ -14,12 +14,13 @@ history.json on the `data` branch. Locally:
 """
 import argparse
 import json
-import shutil
 import sys
 import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+import render
 
 ROOT = Path(__file__).parent
 POLL_EVERY = 60 * 60
@@ -30,6 +31,7 @@ PLAYERS_API = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPl
 HISTORY_API = "https://steamcharts.com/app/{}/chart-data.json"
 DETAILS_API = "https://store.steampowered.com/api/appdetails?appids={}&filters=basic"
 CAPSULE_FALLBACK = "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{}/capsule_231x87.jpg"
+HEADER_FALLBACK = "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{}/header.jpg"
 
 OUTAGE_WINDOW = 3      # hours either side used as the "normal" reference
 OUTAGE_RATIO = 0.25    # a reading below 25% of the neighbouring hours is a dip…
@@ -86,15 +88,18 @@ def seed(games, history):
 
 
 def find_art(games, history):
+    """Steam capsule (list thumbnail) and header (game page) image URLs, looked up once per game."""
     for g in games:
         key = str(g["id"])
-        if key in history["art"]:
+        if isinstance(history["art"].get(key), dict):
             continue
+        art = {"capsule": CAPSULE_FALLBACK.format(g["id"]), "header": HEADER_FALLBACK.format(g["id"])}
         try:
             d = fetch(DETAILS_API.format(g["id"])).get(key, {}).get("data") or {}
-            history["art"][key] = d.get("capsule_image") or CAPSULE_FALLBACK.format(g["id"])
+            art = {"capsule": d.get("capsule_image") or art["capsule"], "header": d.get("header_image") or art["header"]}
         except Exception:
-            history["art"][key] = CAPSULE_FALLBACK.format(g["id"])
+            pass
+        history["art"][key] = art
         time.sleep(0.3)
 
 
@@ -137,20 +142,23 @@ def week_stats(samples):
     values = [p for v in kept.values() for p in v]
     if not values:
         return None
-    means = [sum(v) / len(v) for v in kept.values()]
+    means = {h: sum(v) / len(v) for h, v in kept.items()}
     return {
         "min": min(values),
         "max": max(values),
         # mean of hourly means, so denser stretches of data don't outweigh the rest
-        "mean": round(sum(means) / len(means)),
+        "mean": round(sum(means.values()) / len(means)),
         "dips": dips,
+        "hourly": means,
     }
 
 
 def build_state(games, history, polled_at, error):
+    """Returns (state for api/state.json, hourly averages per game for the charts)."""
     now = int(time.time())
     since = now - WEEK
     out = []
+    hourly = {}
     oldest = None
     for g in games:
         rows = history["samples"].get(str(g["id"]))
@@ -160,8 +168,10 @@ def build_state(games, history, polled_at, error):
         week = [r for r in rows if r[0] >= since]
         if week:
             oldest = min(oldest or week[0][0], week[0][0])
-        stats = week_stats(week) or {"min": p, "max": p, "mean": p, "dips": 0}
-        out.append({**g, "img": history["art"].get(str(g["id"])), "now": p, "seenAt": ts, **stats})
+        stats = week_stats(week) or {"min": p, "max": p, "mean": p, "dips": 0, "hourly": {}}
+        hourly[g["id"]] = stats.pop("hourly")
+        art = history["art"].get(str(g["id"])) or {}
+        out.append({**g, "img": art.get("capsule"), "header": art.get("header"), "now": p, "seenAt": ts, **stats})
     return {
         "games": out,
         "polledAt": polled_at,
@@ -170,7 +180,7 @@ def build_state(games, history, polled_at, error):
         "seeding": False,
         "error": error,
         "serverTime": now,
-    }
+    }, hourly
 
 
 def main():
@@ -201,11 +211,12 @@ def main():
     hist_path.write_text(json.dumps(history, separators=(",", ":")), encoding="utf-8")
 
     site = Path(args.site)
+    state, hourly = build_state(games, history, last, error)
+    pages = render.build(state, hourly, site)
     (site / "api").mkdir(parents=True, exist_ok=True)
-    shutil.copy(ROOT / "web" / "index.html", site / "index.html")
-    state = build_state(games, history, last, error)
-    (site / "api" / "state.json").write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-    log(f"wrote {site} with {len(state['games'])} games")
+    public = {**state, "games": [{k: v for k, v in g.items() if k != "rank"} for g in state["games"]]}
+    (site / "api" / "state.json").write_text(json.dumps(public, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    log(f"wrote {site}: {pages} pages, {len(state['games'])} games")
 
 
 if __name__ == "__main__":
