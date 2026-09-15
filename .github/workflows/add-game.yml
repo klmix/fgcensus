@@ -1,0 +1,43 @@
+name: Add game
+run-name: "Add game: ${{ inputs.steam_links }}"
+
+on:
+  workflow_dispatch:
+    inputs:
+      steam_links:
+        description: Steam store link(s) – separate several with spaces
+        required: true
+
+concurrency:
+  group: add-game
+  cancel-in-progress: false
+
+jobs:
+  add:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Add to games.json
+        env:
+          LINKS: ${{ inputs.steam_links }}
+        run: python3 add_game.py | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Commit and refresh the site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet games.json; then
+            echo "Nothing new to add." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          added=$(git diff -U0 games.json | grep '^+ ' | sed -E 's/.*"name": "(.*)"}.*/\1/' | awk 'NR>1{printf ", "}{printf "%s",$0}')
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qam "Add $added"
+          git push -q
+          # pushes made with this token don't start other workflows, so ask for an update run explicitly
+          gh workflow run update.yml --ref main
