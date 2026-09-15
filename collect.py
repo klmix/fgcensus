@@ -99,9 +99,12 @@ def find_art(games, history):
 
 
 def prune(history, now):
-    for key, rows in history["samples"].items():
-        rows.sort()
-        history["samples"][key] = [r for r in rows if r[0] >= now - KEEP]
+    for key, rows in list(history["samples"].items()):
+        rows = sorted(r for r in rows if r[0] >= now - KEEP)
+        if rows:
+            history["samples"][key] = rows
+        else:
+            del history["samples"][key]  # e.g. a game removed from games.json over a week ago
 
 
 # ---------------------------------------------------------------- stats
