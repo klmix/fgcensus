@@ -16,9 +16,7 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 SITE_URL = "https://fgcensus.info/"
 FONTS = "https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chivo+Mono:wght@400;600&family=Saira+Condensed:wght@800&display=swap"
-FAVICON = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23151823'/%3E"
-           "%3Crect x='14' y='11' width='4' height='13' rx='1' fill='%23e9ebf3'/%3E%3Ccircle cx='16' cy='10' r='6' fill='%237b8cff'/%3E"
-           "%3Crect x='6' y='23' width='20' height='4' rx='2' fill='%23f3b53a'/%3E%3C/svg%3E")
+ICON_FILES = ["favicon.svg", "favicon.png", "favicon.ico", "apple-touch-icon.png"]
 FOOTER_NOTE = "Live counts from Steam's public player-count API, updated every hour."
 
 esc = html.escape
@@ -65,7 +63,9 @@ def head(title, description, canonical, prefix, image=None, extra=""):
 <meta property="og:description" content="{esc(description)}">
 <meta property="og:url" content="{esc(canonical)}">
 {og_image}<meta name="twitter:card" content="{'summary_large_image' if image else 'summary'}">
-<link rel="icon" href="{FAVICON}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" type="image/png" sizes="96x96">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{FONTS}">
@@ -339,6 +339,8 @@ def build(state, hourly_by_id, site):
 
     shutil.copy(ROOT / "web" / "style.css", site / "style.css")
     shutil.copy(ROOT / "web" / "app.js", site / "app.js")
+    for name in ICON_FILES:
+        shutil.copy(ROOT / "web" / name, site / name)
     (site / "index.html").write_text(home_page(state, ranked), encoding="utf-8")
     (site / "404.html").write_text(not_found_page(state), encoding="utf-8")
     for g in ranked:
