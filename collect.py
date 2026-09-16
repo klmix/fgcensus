@@ -216,6 +216,12 @@ def main():
     (site / "api").mkdir(parents=True, exist_ok=True)
     public = {**state, "games": [{k: v for k, v in g.items() if k != "rank"} for g in state["games"]]}
     (site / "api" / "state.json").write_text(json.dumps(public, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    # hourly averages for the past week, for the compare view (loaded only when someone opens it)
+    start, end = (state["serverTime"] - WEEK) // 3600 + 1, state["serverTime"] // 3600
+    series = {g["id"]: [round(hourly[g["id"]][h]) if h in hourly[g["id"]] else None for h in range(start, end + 1)]
+              for g in state["games"]}
+    (site / "api" / "history.json").write_text(
+        json.dumps({"start": start, "hours": end - start + 1, "series": series}, separators=(",", ":")), encoding="utf-8")
     log(f"wrote {site}: {pages} pages, {len(state['games'])} games")
 
 

@@ -93,7 +93,8 @@ def notice(state):
     return f'<p class="notice" id="notice" data-swap{"" if text else " hidden"}>{esc(text)}</p>'
 
 
-def footer(prefix):
+def footer(prefix, scripts=("app.js",)):
+    tags = "".join(f'<script src="{prefix}{name}" defer></script>' for name in scripts)
     return f"""  <footer>
     <p>{FOOTER_NOTE}</p>
     <div class="legend">
@@ -104,7 +105,7 @@ def footer(prefix):
     </div>
   </footer>
 </div>
-<script src="{prefix}app.js" defer></script>
+{tags}
 </body>
 </html>
 """
@@ -246,6 +247,10 @@ def home_page(state, ranked):
   <main>
     <div class="controls">
       <input class="search" id="q" type="search" placeholder="Find a game…" aria-label="Find a game">
+      <button type="button" class="compare-btn" id="compare-open" aria-haspopup="dialog">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12l3.5-4 3 2.5L14 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 8.5l3.5 1.5 3-4L14 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/></svg>
+        Compare
+      </button>
       <div class="seg" role="group" aria-label="Sort by" id="sort">
         <button type="button" data-k="now" aria-pressed="true">Now</button>
         <button type="button" data-k="mean" aria-pressed="false">Week avg</button>
@@ -261,7 +266,33 @@ def home_page(state, ranked):
     <p class="none" id="no-match" hidden></p>
   </main>
 
-""" + footer("")
+  <dialog class="compare" id="compare" aria-labelledby="compare-title">
+    <div class="cmp-head">
+      <h2 id="compare-title">Compare games</h2>
+      <button type="button" class="cmp-close" id="compare-close" aria-label="Close">×</button>
+    </div>
+    <div class="cmp-body">
+      <div class="cmp-pick">
+        <input class="search" id="cmp-q" type="search" placeholder="Add a game…" aria-label="Search games to compare">
+        <p class="cmp-hint" id="cmp-hint">Pick 2 to 5 games.</p>
+        <ul class="cmp-list" id="cmp-list"></ul>
+      </div>
+      <div class="cmp-view">
+        <div class="cmp-chips" id="cmp-chips"></div>
+        <div class="cmp-stage">
+          <canvas id="cmp-canvas" width="2400" height="1350" role="img" aria-label="" hidden></canvas>
+          <p class="cmp-empty" id="cmp-empty">Pick at least two games to see the comparison.</p>
+        </div>
+        <div class="cmp-actions">
+          <button type="button" class="cmp-primary" id="cmp-download" disabled>Download image</button>
+          <button type="button" class="cmp-secondary" id="cmp-link" disabled>Copy link</button>
+          <span class="cmp-status" id="cmp-status" aria-live="polite"></span>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+""" + footer("", ("app.js", "compare.js"))
 
 
 def game_page(state, g, ranked, hourly):
@@ -332,7 +363,8 @@ def build(state, hourly_by_id, site):
     site.mkdir(parents=True, exist_ok=True)
 
     shutil.copy(ROOT / "web" / "style.css", site / "style.css")
-    shutil.copy(ROOT / "web" / "app.js", site / "app.js")
+    for name in ("app.js", "compare.js"):
+        shutil.copy(ROOT / "web" / name, site / name)
     for name in ICON_FILES:
         shutil.copy(ROOT / "web" / name, site / name)
     (site / "index.html").write_text(home_page(state, ranked), encoding="utf-8")

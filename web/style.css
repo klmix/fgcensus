@@ -7,6 +7,7 @@
   --faint: #9a9fb2;
   --line: #d6d9e3;
   --accent: #3346e8;
+  --on-accent: #ffffff;
   --meter: #d48a00;
   --meter-soft: rgba(212, 138, 0, .28);
 
@@ -24,6 +25,8 @@
     --faint: #5a5f75;
     --line: #262a3a;
     --accent: #7b8cff;
+  --on-accent: #0c0e15;
+    --on-accent: #0c0e15;
     --meter: #f3b53a;
     --meter-soft: rgba(243, 181, 58, .26);
   }
@@ -208,4 +211,61 @@ footer p { margin: 0; }
   .stats .big dd { font-size: 32px; }
   .chart { height: 180px; margin-left: 40px; }
   .xday { display: none; }
+}
+
+/* ---------- compare ---------- */
+.compare-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 600 13px var(--body); color: var(--muted); background: transparent;
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 11px; cursor: pointer;
+}
+.compare-btn svg { width: 15px; height: 15px; }
+.compare-btn:hover { color: var(--ink); border-color: var(--faint); }
+
+dialog.compare {
+  width: min(1180px, calc(100vw - 32px)); max-height: calc(100vh - 32px);
+  padding: 0; border: 0; border-radius: 12px;
+  background: var(--ground); color: var(--ink);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, .35);
+}
+dialog.compare::backdrop { background: rgba(8, 9, 14, .6); }
+.cmp-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+.cmp-head h2 { font: 600 16px var(--body); margin: 0; }
+.cmp-close { font: 400 26px/1 var(--body); color: var(--muted); background: none; border: 0; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+.cmp-close:hover { color: var(--ink); background: var(--sunk); }
+.cmp-body { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 20px; padding: 18px; }
+.cmp-pick { display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; min-width: 0; }
+.cmp-pick .search { width: 100%; flex: none; }
+.cmp-hint { margin: 0; font-size: 13px; color: var(--muted); }
+.cmp-list { list-style: none; margin: 0; padding: 0; max-height: 470px; overflow-y: auto; }
+.cmp-list label {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.cmp-list label:hover { background: var(--sunk); }
+.cmp-list input { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+.cmp-list input:disabled + span { color: var(--faint); }
+.cmp-list .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-list .c { font: 400 12px var(--mono); color: var(--faint); font-variant-numeric: tabular-nums; }
+.cmp-view { min-width: 0; display: grid; gap: 12px; align-content: start; }
+.cmp-chips { display: flex; flex-wrap: wrap; gap: 6px; min-height: 30px; }
+.cmp-chip { display: inline-flex; align-items: center; gap: 7px; padding: 3px 4px 3px 10px; border-radius: 99px; background: var(--sunk); font-size: 13px; }
+.cmp-chip i { width: 9px; height: 9px; border-radius: 50%; }
+.cmp-chip button { font: 400 16px/1 var(--body); color: var(--muted); background: none; border: 0; cursor: pointer; padding: 1px 6px; border-radius: 99px; }
+.cmp-chip button:hover { color: var(--ink); background: var(--line); }
+.cmp-stage canvas { display: block; width: 100%; height: auto; border-radius: 10px; background: #0c0e15; }
+.cmp-empty {
+  display: grid; place-items: center; aspect-ratio: 16 / 9; max-width: 100%; margin: 0; padding: 20px; text-align: center;
+  border: 1px dashed var(--line); border-radius: 10px; color: var(--muted);
+}
+.cmp-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.cmp-primary, .cmp-secondary { font: 600 14px var(--body); border-radius: 8px; padding: 9px 14px; cursor: pointer; }
+.cmp-primary { background: var(--accent); color: var(--on-accent); border: 1px solid var(--accent); }
+.cmp-secondary { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.cmp-primary:disabled, .cmp-secondary:disabled { opacity: .45; cursor: default; }
+.cmp-status { font-size: 13px; color: var(--muted); }
+
+@media (max-width: 760px) {
+  .cmp-body { grid-template-columns: minmax(0, 1fr); }
+  .cmp-list { max-height: 220px; }
 }
