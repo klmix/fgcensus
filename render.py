@@ -70,6 +70,8 @@ def head(title, description, canonical, prefix, image=None, extra=""):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{FONTS}">
 <link rel="stylesheet" href="{prefix}style.css">
+<script>window.goatcounter = {{path: function (p) {{ return location.host + p; }}}};</script>
+<script data-goatcounter="https://rwall.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 {extra}</head>
 <body>
 """
