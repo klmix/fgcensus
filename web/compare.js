@@ -87,8 +87,6 @@
   // Laid out for social feeds: the image is usually shown at ~50% size,
   // so nothing is smaller than 16px here and each card carries only the key numbers.
 
-  const peakLabel = g => (g.peakAllTime ? "all-time peak" : "tracked peak");
-
   function fitText(ctx, text, maxWidth) {
     if (ctx.measureText(text).width <= maxWidth) return text;
     let t = text;
@@ -195,7 +193,7 @@
     ctx.fillText(fitText(ctx, `Steam concurrent players · past 7 days · ${day}`, inner - mw - 70), PAD, 645);
 
     canvas.setAttribute("aria-label", `${title}. ${pieces.map(p => p.text).join("")}. ` +
-      picked.map(g => `${g.name}: ${fmt(g.now)} playing now, weekly average ${fmt(g.mean)}, ${peakLabel(g)} ${fmt(g.peak)}.`).join(" "));
+      picked.map(g => `${g.name}: ${fmt(g.now)} playing now, average ${fmt(g.mean)}, peak ${fmt(g.peak)}.`).join(" "));
   }
 
   function drawChart(ctx, picked, box) {
@@ -333,7 +331,7 @@
     picked.forEach((g, i) => {
       const y = top + i * rowH;
       const color = COLORS[slotOf.get(g.id)];
-      const avg = ["weekly avg", fmt(g.mean)], peak = [peakLabel(g), fmt(g.peak)];
+      const avg = ["avg", fmt(g.mean)], peak = ["peak", fmt(g.peak)];
       if (i > 0) {
         ctx.fillStyle = LINE;
         ctx.fillRect(box.x, Math.round(y - 16), box.w, 1);
