@@ -201,7 +201,6 @@ footer p { margin: 0; }
 .about { max-width: 65ch; color: var(--muted); margin: 22px 0 0; }
 .about p { margin: 0 0 8px; }
 .about a { color: var(--ink); }
-.section-h { font: 600 11px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 28px 0 10px; }
 
 @media (max-width: 700px) {
   .game-head { grid-template-columns: minmax(0, 1fr); }

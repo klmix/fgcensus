@@ -270,9 +270,6 @@ def game_page(state, g, ranked, hourly):
     description = (f"{g['name']} has {fmt(g['now'])} players on Steam right now. Over the past week: "
                    f"low {fmt(g['min'])}, average {fmt(g['mean'])}, peak {fmt(g['max'])}. Updated every hour.")
     since = state["serverTime"] - 7 * 24 * 3600
-    i = g["rank"] - 1
-    around = ranked[max(0, i - 2):i + 3]
-    rows = "\n".join(row(o, "../") for o in around)
     hero = g.get("header") or g.get("img") or ""
 
     return head(title, description, canonical, "../", image=hero) + f"""<div class="wrap">
@@ -305,11 +302,6 @@ def game_page(state, g, ranked, hourly):
       <p>{esc(g['name'])} has {fmt(g['now'])} concurrent players on Steam as of {utc(state['polledAt'])}. Over the last seven days it averaged {fmt(g['mean'])} players, with a low of {fmt(g['min'])} and a peak of {fmt(g['max'])}.</p>
       <p><a href="https://store.steampowered.com/app/{g['id']}">Steam store page</a> · <a href="https://steamcharts.com/app/{g['id']}">SteamCharts</a> · <a href="https://steamdb.info/app/{g['id']}/charts/">SteamDB</a></p>
     </div>
-
-    <h2 class="section-h">Around it on the ladder</h2>
-    <ol class="ladder">
-{rows}
-    </ol>
   </main>
 
 """ + footer("../")
