@@ -4,6 +4,7 @@ Every page ships fully rendered (names, numbers, charts) so search engines and
 link previews see the content without running JavaScript. web/app.js only adds
 sorting, search, local times and periodic refreshes on top.
 """
+import hashlib
 import html
 import json
 import math
@@ -20,6 +21,12 @@ ICON_FILES = ["favicon.svg", "favicon.png", "favicon.ico", "apple-touch-icon.png
 FOOTER_NOTE = "Live counts from Steam's public player-count API, updated every hour."
 
 esc = html.escape
+
+
+def asset(name):
+    """File name plus a short content hash, e.g. style.css?v=1a2b3c4d, so browsers refetch after a change."""
+    digest = hashlib.sha1((ROOT / "web" / name).read_bytes()).hexdigest()[:8]
+    return f"{name}?v={digest}"
 
 
 def fmt(n):
@@ -69,7 +76,7 @@ def head(title, description, canonical, prefix, image=None, extra=""):
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="{FONTS}">
-<link rel="stylesheet" href="{prefix}style.css">
+<link rel="stylesheet" href="{prefix}{asset('style.css')}">
 <script>window.goatcounter = {{path: function (p) {{ return location.host + p; }}}};</script>
 <script data-goatcounter="https://rwall.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 {extra}</head>
@@ -94,7 +101,7 @@ def notice(state):
 
 
 def footer(prefix, scripts=("app.js",)):
-    tags = "".join(f'<script src="{prefix}{name}" defer></script>' for name in scripts)
+    tags = "".join(f'<script src="{prefix}{asset(name)}" defer></script>' for name in scripts)
     return f"""  <footer>
     <p>{FOOTER_NOTE}</p>
     <div class="legend">
@@ -248,7 +255,7 @@ def home_page(state, ranked):
     <div class="controls">
       <input class="search" id="q" type="search" placeholder="Find a game…" aria-label="Find a game">
       <button type="button" class="compare-btn" id="compare-open" aria-haspopup="dialog">
-        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12l3.5-4 3 2.5L14 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 8.5l3.5 1.5 3-4L14 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/></svg>
+        <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12l3.5-4 3 2.5L14 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 8.5l3.5 1.5 3-4L14 9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/></svg>
         Compare
       </button>
       <div class="seg" role="group" aria-label="Sort by" id="sort">
