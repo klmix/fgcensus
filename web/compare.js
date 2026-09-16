@@ -84,24 +84,10 @@
   }
 
   // ------------------------------------------------------------ drawing
+  // Laid out for social feeds: the image is usually shown at ~50% size,
+  // so nothing is smaller than 16px here and each card carries only the key numbers.
 
   const peakLabel = g => (g.peakAllTime ? "all-time peak" : "tracked peak");
-
-  function busiestHour(g) {
-    // UTC hour of day with the highest average player count over the week
-    const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
-    (series[g.id] || []).forEach((v, i) => {
-      if (v == null) return;
-      const hour = (meta.start + i) % 24;
-      sums[hour] += v;
-      counts[hour]++;
-    });
-    let best = null, bestAvg = 0;
-    for (let h = 0; h < 24; h++) {
-      if (counts[h] && sums[h] / counts[h] > bestAvg) { bestAvg = sums[h] / counts[h]; best = h; }
-    }
-    return best;
-  }
 
   function fitText(ctx, text, maxWidth) {
     if (ctx.measureText(text).width <= maxWidth) return text;
@@ -117,21 +103,42 @@
 
   function niceLinear(max) {
     if (max <= 0) return { top: 1, step: 1 };
-    const raw = max / 4, mag = 10 ** Math.floor(Math.log10(raw));
+    const raw = max / 3, mag = 10 ** Math.floor(Math.log10(raw));
     const step = Math.max(1, Math.round([1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= raw)));
     return { top: Math.ceil(max / step) * step, step };
   }
 
+  const short = v => (v >= 1000 ? `${v / 1000 >= 10 ? Math.round(v / 1000) : +(v / 1000).toFixed(1)}k` : String(v));
+
+  // the headline sentence as styled pieces: the key number is bold white, the rest muted
   function takeaway(picked) {
-    const byAvg = picked.slice().sort((a, b) => b.mean - a.mean);
-    const [a, b] = byAvg;
+    const [a, b] = picked.slice().sort((x, y) => y.mean - x.mean);
+    const plain = t => ({ text: t, bold: false });
+    const strong = t => ({ text: t, bold: true });
     if (picked.length === 2) {
-      if (b.mean <= 0) return `${a.name} averaged ${fmt(a.mean)} players this week; ${b.name} had almost nobody online.`;
+      if (b.mean <= 0) return [plain(`${a.name} averaged `), strong(fmt(a.mean)), plain(` players while ${b.name} was nearly empty`)];
       const ratio = a.mean / b.mean;
-      if (ratio < 1.1) return `${a.name} and ${b.name} were neck and neck this week (${fmt(a.mean)} vs ${fmt(b.mean)} on average).`;
-      return `${a.name} averaged ${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)}× the players of ${b.name} this week.`;
+      if (ratio < 1.1) return [plain(`${a.name} and ${b.name} are `), strong("neck and neck"), plain(` (${fmt(a.mean)} vs ${fmt(b.mean)} avg)`)];
+      const r = ratio >= 10 ? String(Math.round(ratio)) : ratio.toFixed(1);
+      return [plain(`${a.name} averaged `), strong(`${r}×`), plain(` the players of ${b.name}`)];
     }
-    return `${a.name} leads with ${fmt(a.mean)} players on average this week.`;
+    return [plain(`${a.name} leads with `), strong(fmt(a.mean)), plain(" players on average")];
+  }
+
+  function drawRich(ctx, pieces, x, y, maxWidth) {
+    let size = 26;
+    const font = (bold, s) => `${bold ? 700 : 400} ${s}px ${SANS}`;
+    const width = s => pieces.reduce((sum, p) => { ctx.font = font(p.bold, s); return sum + ctx.measureText(p.text).width; }, 0);
+    while (size > 20 && width(size) > maxWidth) size -= 1;
+    let cx = x;
+    for (const p of pieces) {
+      ctx.font = font(p.bold, size);
+      ctx.fillStyle = p.bold ? INK : MUTED;
+      const text = fitText(ctx, p.text, x + maxWidth - cx);
+      ctx.fillText(text, cx, y);
+      cx += ctx.measureText(text).width;
+      if (cx >= x + maxWidth) break;
+    }
   }
 
   function drawMark(ctx, x, y, s) {
@@ -148,60 +155,55 @@
     const ctx = canvas.getContext("2d");
     ctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
     ctx.textBaseline = "alphabetic";
+    ctx.textAlign = "left";
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, W, H);
 
-    const PAD = 44;
-    const updated = meta.polledAt ? new Date(meta.polledAt * 1000).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "";
+    const PAD = 48, inner = W - 2 * PAD;
 
-    // header
-    ctx.fillStyle = MUTED;
-    ctx.font = `400 13px ${MONO}`;
-    ctx.letterSpacing = "1.5px";
-    ctx.fillText("STEAM PLAYER COMPARISON · PAST 7 DAYS", PAD, 58);
-    ctx.letterSpacing = "0px";
-
+    // title: the matchup, shrunk to fit; with many long names say how many instead
     let title = picked.map(g => g.name).join("  vs  ");
-    let size = 38;
-    ctx.font = `600 ${size}px ${SANS}`;
-    while (size > 26 && ctx.measureText(title).width > W - 2 * PAD) { size -= 2; ctx.font = `600 ${size}px ${SANS}`; }
-    if (ctx.measureText(title).width > W - 2 * PAD) {
-      // names are on the cards anyway; don't cut them off mid-word in the headline
+    let size = 50;
+    ctx.font = `700 ${size}px ${SANS}`;
+    while (size > 34 && ctx.measureText(title).width > inner) { size -= 2; ctx.font = `700 ${size}px ${SANS}`; }
+    if (ctx.measureText(title).width > inner) {
       title = `${picked.length} fighting games compared`;
-      size = 38;
-      ctx.font = `600 ${size}px ${SANS}`;
+      ctx.font = `700 50px ${SANS}`;
     }
     ctx.fillStyle = INK;
-    ctx.fillText(fitText(ctx, title, W - 2 * PAD), PAD, 102);
+    ctx.fillText(fitText(ctx, title, inner), PAD, 94);
 
-    ctx.font = `400 18px ${SANS}`;
-    ctx.fillStyle = MUTED;
-    ctx.fillText(fitText(ctx, takeaway(picked), W - 2 * PAD), PAD, 134);
+    const pieces = takeaway(picked);
+    drawRich(ctx, pieces, PAD, 140, inner);
 
-    drawChart(ctx, picked, { x: PAD, y: 160, w: 700, h: 410 });
-    drawCards(ctx, picked, { x: PAD + 728, y: 160, w: W - PAD - (PAD + 728), h: 410 });
+    drawChart(ctx, picked, { x: PAD, y: 172, w: 690, h: 424 });
+    drawCards(ctx, picked, { x: PAD + 722, y: 172, w: W - PAD - (PAD + 722), h: 424 });
 
-    // footer: source on the left, watermark on the right
-    ctx.font = `400 12px ${MONO}`;
-    ctx.fillStyle = FAINT;
-    ctx.fillText(`Data: Steam Web API · hourly averages · as of ${updated}`, PAD, 628);
-    ctx.font = `600 17px ${SANS}`;
-    ctx.fillStyle = MUTED;
+    // footer: what the data is on the left, the watermark on the right
+    const day = meta.polledAt
+      ? new Date(meta.polledAt * 1000).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+      : "";
+    ctx.font = `600 26px ${SANS}`;
     const mark = "fgcensus.info";
     const mw = ctx.measureText(mark).width;
-    ctx.fillText(mark, W - PAD - mw, 629);
-    drawMark(ctx, W - PAD - mw - 30, 610, 22);
+    ctx.fillStyle = INK;
+    ctx.fillText(mark, W - PAD - mw, 647);
+    drawMark(ctx, W - PAD - mw - 42, 620, 32);
 
-    canvas.setAttribute("aria-label", `${title}. ${takeaway(picked)} ` +
-      picked.map(g => `${g.name}: ${fmt(g.now)} now, weekly average ${fmt(g.mean)}, weekly low ${fmt(g.min)}, ${peakLabel(g)} ${fmt(g.peak)}.`).join(" "));
+    ctx.font = `400 19px ${SANS}`;
+    ctx.fillStyle = MUTED;
+    ctx.fillText(fitText(ctx, `Steam concurrent players · past 7 days · ${day}`, inner - mw - 70), PAD, 645);
+
+    canvas.setAttribute("aria-label", `${title}. ${pieces.map(p => p.text).join("")}. ` +
+      picked.map(g => `${g.name}: ${fmt(g.now)} playing now, weekly average ${fmt(g.mean)}, ${peakLabel(g)} ${fmt(g.peak)}.`).join(" "));
   }
 
   function drawChart(ctx, picked, box) {
     ctx.fillStyle = PANEL;
-    roundRect(ctx, box.x, box.y, box.w, box.h, 14);
+    roundRect(ctx, box.x, box.y, box.w, box.h, 16);
     ctx.fill();
 
-    const x0 = box.x + 70, x1 = box.x + box.w - 24, y0 = box.y + 40, y1 = box.y + box.h - 40;
+    const x0 = box.x + 76, x1 = box.x + box.w - 28, y0 = box.y + 52, y1 = box.y + box.h - 52;
     const lists = picked.map(g => series[g.id] || []);
     const present = lists.flat().filter(v => v != null);
     const maxV = Math.max(1, ...present);
@@ -223,34 +225,35 @@
     const n = Math.max(1, meta.hours - 1);
     const xOf = i => x0 + i / n * (x1 - x0);
 
-    ctx.font = `400 12px ${MONO}`;
+    ctx.font = `400 19px ${SANS}`;
     ctx.fillStyle = MUTED;
-    ctx.fillText("Players per hour", box.x + 20, box.y + 26);
+    ctx.fillText("Players per hour", box.x + 24, box.y + 34);
     if (useLog) {
       const t = "log scale";
       ctx.fillStyle = FAINT;
-      ctx.fillText(t, box.x + box.w - 24 - ctx.measureText(t).width, box.y + 26);
+      ctx.fillText(t, box.x + box.w - 28 - ctx.measureText(t).width, box.y + 34);
     }
 
     // grid + y labels
     ctx.lineWidth = 1;
     ctx.strokeStyle = LINE;
-    ctx.textAlign = "right";
+    ctx.font = `400 19px ${MONO}`;
     ctx.fillStyle = FAINT;
+    ctx.textAlign = "right";
     for (const v of ticks) {
       const y = Math.round(yOf(v)) + 0.5;
       ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
-      const label = v >= 1000 ? `${v / 1000 >= 10 ? Math.round(v / 1000) : +(v / 1000).toFixed(1)}k` : String(v);
-      ctx.fillText(label, x0 - 10, y + 4);
+      ctx.fillText(short(v), x0 - 12, y + 6);
     }
     // day boundaries (UTC midnight) + weekday labels
     ctx.textAlign = "center";
+    ctx.font = `400 19px ${SANS}`;
     for (let i = 0; i < meta.hours; i++) {
       if ((meta.start + i) % 24 !== 0) continue;
       const x = Math.round(xOf(i)) + 0.5;
       ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
-      const day = new Date((meta.start + i) * 3600 * 1000).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
-      ctx.fillText(day, x, y1 + 22);
+      const dayName = new Date((meta.start + i) * 3600 * 1000).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
+      ctx.fillText(dayName, x, y1 + 32);
     }
     ctx.textAlign = "left";
 
@@ -262,7 +265,7 @@
       const values = lists[i];
       const color = COLORS[slotOf.get(picked[i].id)];
       ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.beginPath();
       let last = null;
       values.forEach((v, h) => {
@@ -274,10 +277,10 @@
       ctx.stroke();
       if (last !== null) {
         ctx.beginPath();
-        ctx.arc(xOf(last), yOf(values[last]), 4.5, 0, Math.PI * 2);
+        ctx.arc(xOf(last), yOf(values[last]), 6.5, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 3;
         ctx.strokeStyle = PANEL;
         ctx.stroke();
       }
@@ -287,72 +290,92 @@
   function drawCards(ctx, picked, box) {
     // share of everyone playing these games right now
     const total = picked.reduce((s, g) => s + g.now, 0);
-    ctx.font = `400 12px ${MONO}`;
+    ctx.font = `400 19px ${SANS}`;
     ctx.fillStyle = MUTED;
-    ctx.fillText("Share of players right now", box.x, box.y + 12);
-    const barY = box.y + 24, barH = 12;
+    ctx.fillText("Share of players right now", box.x, box.y + 18);
+    const barY = box.y + 32, barH = 16;
     if (total > 0) {
       const online = picked.filter(g => g.now > 0);
-      const gap = 2, usable = box.w - gap * (online.length - 1);
-      // tiny shares still get a visible 3px sliver; everything is scaled back to fit the bar
-      const raw = online.map(g => Math.max(3, g.now / total * usable));
+      const gap = 3, usable = box.w - gap * (online.length - 1);
+      // tiny shares still get a visible sliver; everything is scaled back to fit the bar
+      const raw = online.map(g => Math.max(5, g.now / total * usable));
       const fit = usable / raw.reduce((s, w) => s + w, 0);
       let x = box.x;
       online.forEach((g, i) => {
         const w = raw[i] * fit;
         ctx.fillStyle = COLORS[slotOf.get(g.id)];
-        roundRect(ctx, x, barY, w, barH, 4);
+        roundRect(ctx, x, barY, w, barH, 5);
         ctx.fill();
         x += w + gap;
       });
     } else {
       ctx.fillStyle = TRACK;
-      roundRect(ctx, box.x, barY, box.w, barH, 4);
+      roundRect(ctx, box.x, barY, box.w, barH, 5);
       ctx.fill();
     }
 
-    // one card per game
-    const top = barY + barH + 22;
-    const rowH = Math.min(104, (box.y + box.h - top) / picked.length);
-    const roomy = rowH >= 92;
-    const maxAvg = Math.max(1, ...picked.map(g => g.mean));
+    // one card per game; the name always gets its own full-width line so it isn't cut off
+    const top = barY + barH + 34;
+    const rowH = Math.min(172, (box.y + box.h - top) / picked.length);
+    const tier = rowH >= 150 ? "big" : rowH >= 86 ? "mid" : "small";
+
+    const drawPair = ([label, value], x, baseline, size) => {
+      ctx.font = `400 ${size}px ${SANS}`;
+      ctx.fillStyle = MUTED;
+      ctx.fillText(label + " ", x, baseline);
+      x += ctx.measureText(label + " ").width;
+      ctx.font = `700 ${size}px ${SANS}`;
+      ctx.fillStyle = INK;
+      ctx.fillText(value, x, baseline);
+      return x + ctx.measureText(value).width;
+    };
+
     picked.forEach((g, i) => {
       const y = top + i * rowH;
       const color = COLORS[slotOf.get(g.id)];
+      const avg = ["weekly avg", fmt(g.mean)], peak = [peakLabel(g), fmt(g.peak)];
       if (i > 0) {
         ctx.fillStyle = LINE;
-        ctx.fillRect(box.x, Math.round(y - 8), box.w, 1);
+        ctx.fillRect(box.x, Math.round(y - 16), box.w, 1);
       }
-      ctx.font = `600 22px ${MONO}`;
-      const nowText = fmt(g.now);
-      const nowW = ctx.measureText(nowText).width;
-      ctx.fillStyle = INK;
-      ctx.fillText(nowText, box.x + box.w - nowW, y + 18);
+      const nameLine = (size, baseline, reserve = 0) => {
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.arc(box.x + 7, baseline - size * 0.36, 7, 0, Math.PI * 2); ctx.fill();
+        ctx.font = `600 ${size}px ${SANS}`;
+        ctx.fillStyle = INK;
+        ctx.fillText(fitText(ctx, g.name, box.w - 24 - reserve), box.x + 24, baseline);
+      };
+      const nowLine = (size, baseline) => {
+        ctx.font = `600 ${size}px ${MONO}`;
+        ctx.fillStyle = INK;
+        const t = fmt(g.now);
+        ctx.fillText(t, box.x + 24, baseline);
+        const w = ctx.measureText(t).width;
+        ctx.font = `400 ${Math.max(16, Math.round(size * 0.42))}px ${SANS}`;
+        ctx.fillStyle = MUTED;
+        ctx.fillText("playing now", box.x + 24 + w + 12, baseline);
+      };
 
-      ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(box.x + 5, y + 12, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.font = `600 17px ${SANS}`;
-      ctx.fillStyle = INK;
-      ctx.fillText(fitText(ctx, g.name, box.w - nowW - 34), box.x + 18, y + 18);
-
-      ctx.font = `400 12px ${MONO}`;
-      ctx.fillStyle = MUTED;
-      const pct = total > 0 ? ` · ${Math.round(g.now / total * 100)}% now` : "";
-      const busy = busiestHour(g);
-      if (roomy) {
-        ctx.fillText(fitText(ctx, `weekly avg ${fmt(g.mean)} · weekly low ${fmt(g.min)}${pct}`, box.w - 18), box.x + 18, y + 38);
-        ctx.fillStyle = FAINT;
-        const when = busy !== null ? ` · busiest ~${String(busy).padStart(2, "0")}:00 UTC` : "";
-        ctx.fillText(fitText(ctx, `${peakLabel(g)} ${fmt(g.peak)}${when}`, box.w - 18), box.x + 18, y + 57);
+      if (tier === "big") {
+        nameLine(26, y + 26);
+        nowLine(46, y + 80);
+        drawPair(avg, box.x + 24, y + 116, 21);
+        drawPair(peak, box.x + 24, y + 146, 21);
+      } else if (tier === "mid") {
+        nameLine(23, y + 22);
+        nowLine(32, y + 60);
+        const x = drawPair(avg, box.x + 24, y + 88, 18);
+        drawPair(peak, x + 18, y + 88, 18);
       } else {
-        ctx.fillText(fitText(ctx, `weekly avg ${fmt(g.mean)} · ${peakLabel(g)} ${fmt(g.peak)}`, box.w - 18), box.x + 18, y + 38);
+        // five games: name and count share a line, stats underneath
+        ctx.font = `600 26px ${MONO}`;
+        const t = fmt(g.now), w = ctx.measureText(t).width;
+        ctx.fillStyle = INK;
+        ctx.fillText(t, box.x + box.w - w, y + 22);
+        nameLine(21, y + 22, w + 14);
+        const x = drawPair(avg, box.x + 24, y + 48, 17);
+        drawPair(peak, x + 16, y + 48, 17);
       }
-
-      const trackY = y + (roomy ? 68 : 48);
-      ctx.fillStyle = TRACK;
-      roundRect(ctx, box.x + 18, trackY, box.w - 18, 4, 2); ctx.fill();
-      ctx.fillStyle = color;
-      roundRect(ctx, box.x + 18, trackY, Math.max(4, g.mean / maxAvg * (box.w - 18)), 4, 2); ctx.fill();
     });
   }
 
@@ -400,7 +423,7 @@
       $("cmp-list").innerHTML = `<li class="cmp-hint">Loading…</li>`;
       try {
         await load();
-        await Promise.all([`600 38px ${SANS}`, `400 18px ${SANS}`, `400 12px ${MONO}`, `600 22px ${MONO}`].map(f => document.fonts.load(f)));
+        await Promise.all([`700 50px ${SANS}`, `600 26px ${SANS}`, `400 19px ${SANS}`, `400 19px ${MONO}`, `600 46px ${MONO}`].map(f => document.fonts.load(f)));
       } catch {
         $("cmp-list").innerHTML = `<li class="cmp-hint">Couldn't load the game data. Try again in a moment.</li>`;
         return;

@@ -16,7 +16,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 SITE_URL = "https://fgcensus.info/"
-FONTS = "https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Chivo+Mono:wght@400;600&family=Saira+Condensed:wght@800&display=swap"
+FONTS = "https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Chivo+Mono:wght@400;600&family=Saira+Condensed:wght@800&display=swap"
 ICON_FILES = ["favicon.svg", "favicon.png", "favicon.ico", "apple-touch-icon.png"]
 FOOTER_NOTE = "Live counts from Steam's public player-count API, updated every hour."
 
