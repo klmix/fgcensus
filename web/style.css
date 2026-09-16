@@ -99,7 +99,7 @@ a { color: inherit; }
 /* ---------- ladder ---------- */
 .ladder-head, .row {
   display: grid;
-  grid-template-columns: 44px 138px minmax(0, 1fr) 96px minmax(220px, 380px);
+  grid-template-columns: 44px 138px minmax(0, 1fr) 96px minmax(200px, 300px);
   gap: 16px; align-items: center;
 }
 .ladder-head {
@@ -131,10 +131,11 @@ a { color: inherit; }
 .track::before { content: ""; position: absolute; left: 0; right: 0; top: 6px; height: 2px; background: var(--sunk); border-radius: 2px; }
 .grid-tick { position: absolute; top: 3px; width: 1px; height: 8px; background: var(--line); }
 .span { position: absolute; top: 3px; height: 8px; border-radius: 4px; background: var(--meter-soft); min-width: 2px; }
-.ath { position: absolute; top: 2px; width: 2px; height: 10px; margin-left: -1px; background: var(--faint); border-radius: 1px; }
 .mean { position: absolute; top: 1px; width: 2px; height: 12px; margin-left: -1px; background: var(--meter); border-radius: 1px; }
 .dot { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--surface); }
-.nums { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 2px 14px; font: 400 11px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.nums { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; font: 400 11px/1 var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.nums > :nth-child(2) { justify-self: center; }
+.nums > :nth-child(3) { justify-self: end; }
 .nums b { font-weight: 600; color: var(--ink); }
 .nums .avg b { color: var(--meter); }
 
@@ -152,7 +153,6 @@ footer p { margin: 0; }
 .legend i { display: inline-block; vertical-align: -1px; margin-right: 6px; }
 .lg-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
 .lg-mean { width: 2px; height: 12px; background: var(--meter); }
-.lg-ath { width: 2px; height: 10px; background: var(--faint); }
 .lg-span { width: 22px; height: 8px; border-radius: 4px; background: var(--meter-soft); }
 
 @media (max-width: 860px) {

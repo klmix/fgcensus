@@ -108,7 +108,6 @@ def footer(prefix, scripts=("app.js",)):
       <span><i class="lg-dot"></i>now</span>
       <span><i class="lg-mean"></i>avg</span>
       <span><i class="lg-span"></i>low–high</span>
-      <span><i class="lg-ath"></i>peak</span>
       <span>log scale</span>
     </div>
   </footer>
@@ -119,9 +118,9 @@ def footer(prefix, scripts=("app.js",)):
 """
 
 
-# shared log scale: 0 … 100k, same as the ladder header
-SCALE_MAX = math.log10(100001)
-TICKS = [(0, "0"), (10, "10"), (100, "100"), (1000, "1k"), (10000, "10k"), (100000, "100k")]
+# shared log scale: 0 … 50k, same as the ladder header
+SCALE_MAX = math.log10(50001)
+TICKS = [(0, "0"), (10, "10"), (100, "100"), (1000, "1k"), (10000, "10k"), (50000, "50k")]
 
 
 def pos(n):
@@ -132,7 +131,6 @@ def gauge(g):
     ticks = "".join(f'<i class="grid-tick" style="left:{pos(v)}"></i>' for v, _ in TICKS[1:-1])
     return (f'<div class="gauge"><div class="track" role="img" aria-label="{fmt(g["now"])} now, low {fmt(g["min"])}, '
             f'average {fmt(g["mean"])}, peak {fmt(g["peak"])}">{ticks}'
-            f'<i class="ath" style="left:{pos(g["peak"])}"></i>'
             f'<i class="span" style="left:{pos(g["min"])};width:calc({pos(g["max"])} - {pos(g["min"])})"></i>'
             f'<i class="mean" style="left:{pos(g["mean"])}"></i><i class="dot" style="left:{pos(g["now"])}"></i></div>'
             f'<div class="nums"><span>low <b>{fmt(g["min"])}</b></span><span class="avg">avg <b>{fmt(g["mean"])}</b></span>'
