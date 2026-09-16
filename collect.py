@@ -14,6 +14,7 @@ history.json on the `data` branch. Locally:
 """
 import argparse
 import json
+import re
 import sys
 import time
 import urllib.request
@@ -29,6 +30,9 @@ KEEP = 8 * 24 * 3600
 UA = {"User-Agent": "Mozilla/5.0 (fgcensus)"}
 PLAYERS_API = "https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid={}"
 HISTORY_API = "https://steamcharts.com/app/{}/chart-data.json"
+CHARTS_PAGE = "https://steamcharts.com/app/{}"
+PEAK_REFRESH = 7 * 24 * 3600   # re-read SteamCharts' all-time peak about once a week per game
+PEAK_LOOKUPS_PER_RUN = 150
 DETAILS_API = "https://store.steampowered.com/api/appdetails?appids={}&filters=basic"
 CAPSULE_FALLBACK = "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{}/capsule_231x87.jpg"
 HEADER_FALLBACK = "https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/{}/header.jpg"
@@ -62,6 +66,8 @@ def poll(games, history):
         results = [r for r in pool.map(one, games) if r]
     for appid, players in results:
         history["samples"].setdefault(str(appid), []).append([ts, players])
+        entry = history["peaks"].setdefault(str(appid), {"peak": 0, "checked": 0})
+        entry["peak"] = max(entry["peak"], players)  # keep new records even after the week of samples rolls off
     log(f"polled {len(results)}/{len(games)} games")
     return ts, len(results)
 
@@ -85,6 +91,36 @@ def seed(games, history):
             log(f"no SteamCharts history for {g['name']}: {e}")
         history["seeded"].append(g["id"])
         time.sleep(0.5)
+
+
+def all_time_peaks(games, history):
+    """All-time peak per game from SteamCharts, refreshed about weekly, a few games per run.
+
+    SteamCharts has years of history; our own history only covers a week. Our
+    hourly checks still raise the stored peak whenever they see a higher number.
+    """
+    now = int(time.time())
+    peaks = history["peaks"]
+    due = sorted((g for g in games if now - peaks.get(str(g["id"]), {}).get("checked", 0) > PEAK_REFRESH),
+                 key=lambda g: peaks.get(str(g["id"]), {}).get("checked", 0))
+    looked_up = 0
+    for g in due[:PEAK_LOOKUPS_PER_RUN]:
+        entry = peaks.setdefault(str(g["id"]), {"peak": 0, "checked": 0})
+        try:
+            req = urllib.request.Request(CHARTS_PAGE.format(g["id"]), headers=UA)
+            with urllib.request.urlopen(req, timeout=20) as r:
+                page = r.read().decode("utf-8", "replace")
+            m = re.search(r'<span class="num">([\d,]+)</span>\s*<br>\s*all-time peak', page)
+            if m:
+                entry["peak"] = max(entry["peak"], int(m.group(1).replace(",", "")))
+                entry["source"] = "steamcharts"
+                looked_up += 1
+        except Exception as e:
+            log(f"no all-time peak from SteamCharts for {g['name']}: {e}")
+        entry["checked"] = now  # also on failure, so one broken page doesn't block the rest
+        time.sleep(0.5)
+    if due:
+        log(f"all-time peaks: read {looked_up} of {min(len(due), PEAK_LOOKUPS_PER_RUN)} from SteamCharts, {max(0, len(due) - PEAK_LOOKUPS_PER_RUN)} still due")
 
 
 def find_art(games, history):
@@ -171,7 +207,11 @@ def build_state(games, history, polled_at, error):
         stats = week_stats(week) or {"min": p, "max": p, "mean": p, "dips": 0, "hourly": {}}
         hourly[g["id"]] = stats.pop("hourly")
         art = history["art"].get(str(g["id"])) or {}
-        out.append({**g, "img": art.get("capsule"), "header": art.get("header"), "now": p, "seenAt": ts, **stats})
+        peak_entry = history["peaks"].get(str(g["id"]), {})
+        peak = max(peak_entry.get("peak", 0), max(p for _, p in rows))
+        # without SteamCharts' number we only know the highest count since we started tracking
+        peak_all_time = peak_entry.get("source") == "steamcharts"
+        out.append({**g, "img": art.get("capsule"), "header": art.get("header"), "now": p, "seenAt": ts, "peak": peak, "peakAllTime": peak_all_time, **stats})
     return {
         "games": out,
         "polledAt": polled_at,
@@ -196,10 +236,12 @@ def main():
     history.setdefault("samples", {})
     history.setdefault("seeded", [])
     history.setdefault("art", {})
+    history.setdefault("peaks", {})
     last = history.get("polledAt")
 
     seed(games, history)
     find_art(games, history)
+    all_time_peaks(games, history)
     ts, ok = poll(games, history)
     error = None
     if ok:

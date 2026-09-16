@@ -106,8 +106,9 @@ def footer(prefix, scripts=("app.js",)):
     <p>{FOOTER_NOTE}</p>
     <div class="legend">
       <span><i class="lg-dot"></i>now</span>
-      <span><i class="lg-mean"></i>week avg</span>
-      <span><i class="lg-span"></i>week low–peak</span>
+      <span><i class="lg-mean"></i>weekly avg</span>
+      <span><i class="lg-span"></i>weekly low–high</span>
+      <span><i class="lg-ath"></i>all-time peak</span>
       <span>log scale</span>
     </div>
   </footer>
@@ -118,23 +119,28 @@ def footer(prefix, scripts=("app.js",)):
 """
 
 
-# shared log scale: 0 … 50k, same as the ladder header
-SCALE_MAX = math.log10(50001)
-TICKS = [(0, "0"), (10, "10"), (100, "100"), (1000, "1k"), (10000, "10k"), (50000, "50k")]
+# shared log scale: 0 … 100k, same as the ladder header
+SCALE_MAX = math.log10(100001)
+TICKS = [(0, "0"), (10, "10"), (100, "100"), (1000, "1k"), (10000, "10k"), (100000, "100k")]
 
 
 def pos(n):
     return f"{math.log10(n + 1) / SCALE_MAX * 100:.2f}%"
 
 
+def peak_label(g):
+    return "all-time peak" if g.get("peakAllTime") else "tracked peak"
+
+
 def gauge(g):
     ticks = "".join(f'<i class="grid-tick" style="left:{pos(v)}"></i>' for v, _ in TICKS[1:-1])
     return (f'<div class="gauge"><div class="track" role="img" aria-label="{fmt(g["now"])} now, weekly low {fmt(g["min"])}, '
-            f'average {fmt(g["mean"])}, peak {fmt(g["max"])}">{ticks}'
+            f'weekly average {fmt(g["mean"])}, {peak_label(g)} {fmt(g["peak"])}">{ticks}'
+            f'<i class="ath" style="left:{pos(g["peak"])}"></i>'
             f'<i class="span" style="left:{pos(g["min"])};width:calc({pos(g["max"])} - {pos(g["min"])})"></i>'
             f'<i class="mean" style="left:{pos(g["mean"])}"></i><i class="dot" style="left:{pos(g["now"])}"></i></div>'
-            f'<div class="nums"><span>low <b>{fmt(g["min"])}</b></span><span class="avg">avg <b>{fmt(g["mean"])}</b></span>'
-            f'<span>peak <b>{fmt(g["max"])}</b></span></div></div>')
+            f'<div class="nums"><span>weekly low <b>{fmt(g["min"])}</b></span><span class="avg">weekly avg <b>{fmt(g["mean"])}</b></span>'
+            f'<span title="{"Highest count on SteamCharts or in our own checks" if g.get("peakAllTime") else "Highest count since FGCensus started tracking (SteamCharts has no data)"}">{peak_label(g)} <b>{fmt(g["peak"])}</b></span></div></div>')
 
 
 def thumb_img(g, key="img"):
@@ -148,7 +154,7 @@ def thumb_img(g, key="img"):
 def row(g, prefix):
     href = f"{prefix}{g['slug']}/"
     classes = "row" + (" empty" if g["now"] == 0 else "") + (" top" if g["rank"] <= 10 else "")
-    return f"""<li class="{classes}" data-name="{esc(g['name'].lower())}" data-now="{g['now']}" data-mean="{g['mean']}" data-max="{g['max']}">
+    return f"""<li class="{classes}" data-name="{esc(g['name'].lower())}" data-now="{g['now']}" data-mean="{g['mean']}" data-max="{g['max']}" data-peak="{g['peak']}">
   <span class="rank" title="Rank by players now">{g['rank']}</span>
   <a class="thumb" href="{href}" tabindex="-1" aria-hidden="true">{thumb_img(g)}</a>
   <div class="who">
@@ -231,13 +237,13 @@ def home_page(state, ranked):
     top_names = ", ".join(g["name"] for g in ranked[:3])
     title = "FGCensus – Fighting Game Player Counts on Steam"
     description = (f"Live Steam player counts for {len(ranked)} fighting games — {top_names} and more. "
-                   f"Current players plus weekly low, average and peak, updated every hour.")
+                   f"Current players, weekly low and average, and all-time peaks, updated every hour.")
     jsonld = json.dumps([
         {"@context": "https://schema.org", "@type": "WebSite", "name": "FGCensus", "url": SITE_URL},
         {"@context": "https://schema.org", "@type": "Dataset", "name": "Steam player counts for fighting games",
          "description": description, "url": SITE_URL, "isAccessibleForFree": True,
          "dateModified": utc(state["polledAt"], "%Y-%m-%dT%H:%M:%SZ"),
-         "variableMeasured": ["Concurrent players", "Weekly low", "Weekly average", "Weekly peak"],
+         "variableMeasured": ["Concurrent players", "Weekly low", "Weekly average", "Weekly high", "All-time peak"],
          "distribution": [{"@type": "DataDownload", "encodingFormat": "application/json",
                            "contentUrl": SITE_URL + "api/state.json"}]},
     ], ensure_ascii=False).replace("</", "<\\/")
@@ -261,7 +267,7 @@ def home_page(state, ranked):
       <div class="seg" role="group" aria-label="Sort by" id="sort">
         <button type="button" data-k="now" aria-pressed="true">Now</button>
         <button type="button" data-k="mean" aria-pressed="false">Week avg</button>
-        <button type="button" data-k="max" aria-pressed="false">Week peak</button>
+        <button type="button" data-k="peak" aria-pressed="false">All-time peak</button>
         <button type="button" data-k="name" aria-pressed="false">A–Z</button>
       </div>
       <span class="count" id="count">{len(ranked)} games</span>
@@ -306,7 +312,7 @@ def game_page(state, g, ranked, hourly):
     canonical = f"{SITE_URL}{g['slug']}/"
     title = f"{g['name']} Player Count on Steam – FGCensus"
     description = (f"{g['name']} has {fmt(g['now'])} players on Steam right now. Over the past week: "
-                   f"low {fmt(g['min'])}, average {fmt(g['mean'])}, peak {fmt(g['max'])}. Updated every hour.")
+                   f"low {fmt(g['min'])}, average {fmt(g['mean'])}, high {fmt(g['max'])}. {peak_label(g).capitalize()}: {fmt(g['peak'])}. Updated every hour.")
     since = state["serverTime"] - 7 * 24 * 3600
     hero = g.get("header") or g.get("img") or ""
 
@@ -324,9 +330,10 @@ def game_page(state, g, ranked, hourly):
         <h1 class="game-title">{esc(g['name'])} player count<small>#{g['rank']} of {len(ranked)} fighting games on Steam right now</small></h1>
         <dl class="stats">
           <div class="big"><dt>Playing now</dt><dd>{fmt(g['now'])}</dd></div>
-          <div><dt>Week low</dt><dd>{fmt(g['min'])}</dd></div>
-          <div class="avg"><dt>Week avg</dt><dd>{fmt(g['mean'])}</dd></div>
-          <div><dt>Week peak</dt><dd>{fmt(g['max'])}</dd></div>
+          <div><dt>Weekly low</dt><dd>{fmt(g['min'])}</dd></div>
+          <div class="avg"><dt>Weekly avg</dt><dd>{fmt(g['mean'])}</dd></div>
+          <div><dt>Weekly high</dt><dd>{fmt(g['max'])}</dd></div>
+          <div><dt>{peak_label(g).capitalize()}</dt><dd>{fmt(g['peak'])}</dd></div>
         </dl>
       </div>
     </section>
@@ -337,7 +344,7 @@ def game_page(state, g, ranked, hourly):
     </section>
 
     <div class="about">
-      <p>{esc(g['name'])} has {fmt(g['now'])} concurrent players on Steam as of {utc(state['polledAt'])}. Over the last seven days it averaged {fmt(g['mean'])} players, with a low of {fmt(g['min'])} and a peak of {fmt(g['max'])}.</p>
+      <p>{esc(g['name'])} has {fmt(g['now'])} concurrent players on Steam as of {utc(state['polledAt'])}. Over the last seven days it averaged {fmt(g['mean'])} players, with a low of {fmt(g['min'])} and a high of {fmt(g['max'])}. {"Its all-time peak on Steam is " + fmt(g['peak']) + " concurrent players." if g.get("peakAllTime") else "The highest count since FGCensus started tracking it is " + fmt(g['peak']) + " players."}</p>
       <p><a href="https://store.steampowered.com/app/{g['id']}">Steam store page</a> · <a href="https://steamcharts.com/app/{g['id']}">SteamCharts</a> · <a href="https://steamdb.info/app/{g['id']}/charts/">SteamDB</a></p>
     </div>
   </main>

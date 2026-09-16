@@ -85,6 +85,8 @@
 
   // ------------------------------------------------------------ drawing
 
+  const peakLabel = g => (g.peakAllTime ? "all-time peak" : "tracked peak");
+
   function busiestHour(g) {
     // UTC hour of day with the highest average player count over the week
     const sums = new Array(24).fill(0), counts = new Array(24).fill(0);
@@ -191,7 +193,7 @@
     drawMark(ctx, W - PAD - mw - 30, 610, 22);
 
     canvas.setAttribute("aria-label", `${title}. ${takeaway(picked)} ` +
-      picked.map(g => `${g.name}: ${fmt(g.now)} now, week average ${fmt(g.mean)}, peak ${fmt(g.max)}, low ${fmt(g.min)}.`).join(" "));
+      picked.map(g => `${g.name}: ${fmt(g.now)} now, weekly average ${fmt(g.mean)}, weekly low ${fmt(g.min)}, ${peakLabel(g)} ${fmt(g.peak)}.`).join(" "));
   }
 
   function drawChart(ctx, picked, box) {
@@ -336,12 +338,14 @@
       ctx.font = `400 12px ${MONO}`;
       ctx.fillStyle = MUTED;
       const pct = total > 0 ? ` · ${Math.round(g.now / total * 100)}% now` : "";
-      ctx.fillText(fitText(ctx, `avg ${fmt(g.mean)} · peak ${fmt(g.max)} · low ${fmt(g.min)}${pct}`, box.w - 18), box.x + 18, y + 38);
-
       const busy = busiestHour(g);
-      if (roomy && busy !== null) {
+      if (roomy) {
+        ctx.fillText(fitText(ctx, `weekly avg ${fmt(g.mean)} · weekly low ${fmt(g.min)}${pct}`, box.w - 18), box.x + 18, y + 38);
         ctx.fillStyle = FAINT;
-        ctx.fillText(`busiest around ${String(busy).padStart(2, "0")}:00 UTC`, box.x + 18, y + 57);
+        const when = busy !== null ? ` · busiest ~${String(busy).padStart(2, "0")}:00 UTC` : "";
+        ctx.fillText(fitText(ctx, `${peakLabel(g)} ${fmt(g.peak)}${when}`, box.w - 18), box.x + 18, y + 57);
+      } else {
+        ctx.fillText(fitText(ctx, `weekly avg ${fmt(g.mean)} · ${peakLabel(g)} ${fmt(g.peak)}`, box.w - 18), box.x + 18, y + 38);
       }
 
       const trackY = y + (roomy ? 68 : 48);
