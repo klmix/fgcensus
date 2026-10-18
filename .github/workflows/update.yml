@@ -7,13 +7,14 @@ on:
   push:
     branches: [main]
 
-concurrency:
-  group: update
-  cancel-in-progress: false
-
 jobs:
   collect:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # one at a time so two runs never overwrite each other's history
+    concurrency:
+      group: update
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -50,6 +51,12 @@ jobs:
   deploy:
     needs: collect
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # a newer site replaces an older one anyway, and a deploy that got stuck
+    # (it happened: one waited 17 days for a runner) must not hold up the next
+    concurrency:
+      group: pages
+      cancel-in-progress: true
     permissions:
       pages: write
       id-token: write

@@ -1,0 +1,38 @@
+name: Watchdog
+run-name: Cancel stuck update runs
+
+# A run that never finishes blocks every later one (they queue behind it).
+# Job timeouts only count while a job is running, not while it waits for a
+# runner, so this cancels any update run that has been going far too long.
+
+on:
+  schedule:
+    - cron: "41 * * * *"
+  workflow_dispatch:
+
+jobs:
+  unstick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel update runs older than 45 minutes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for status in queued in_progress; do
+            gh api "repos/$REPO/actions/workflows/update.yml/runs?status=$status&per_page=100" \
+              --jq '.workflow_runs[] | select(now - (.run_started_at | fromdate) > 45 * 60) | "\(.id) \(now - (.run_started_at | fromdate) | floor)"'
+          done | while read -r id age; do
+            # a normal cancel first; if that didn't take an hour later, force it
+            if [ "$age" -gt $((2 * 3600)) ]; then
+              how=force-cancel
+            else
+              how=cancel
+            fi
+            echo "::warning::Run $id stuck for $((age / 60)) min, sending $how"
+            echo "- [run $id](https://github.com/$REPO/actions/runs/$id): stuck for $((age / 60)) min, sent $how" >> "$GITHUB_STEP_SUMMARY"
+            gh api -X POST "repos/$REPO/actions/runs/$id/$how" || true
+          done
